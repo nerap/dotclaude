@@ -4,6 +4,8 @@
 README.*
 LICENSE.*
 
-# Non-stowed directories
-templates
-docs
+# Hooks go in settings.json, not stowed
+hooks
+
+# Backup
+\.backup$
