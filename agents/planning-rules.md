@@ -15,7 +15,9 @@
 **ALWAYS read these files first:**
 
 1. **CLAUDE.md** - Project tech stack, patterns, conventions, known issues
-2. **.dorian.json** - Quality gates, git config, MCP servers
+2. **.dorian.json** OR **.dorian.json.template** - Quality gates, git config, MCP servers
+   - Try `.dorian.json` first (local config)
+   - If not found, use `.dorian.json.template` (committed template)
 3. **Check for plugins** - `.claude/plugins/` may have additional capabilities
 
 Use this information to:
@@ -27,12 +29,15 @@ Use this information to:
 
 ## MCP Policy
 
-**Default: Check `.dorian.json` for enabled MCPs**
+**Default: Check `.dorian.json` (or `.dorian.json.template`) for enabled MCPs**
 
 ```bash
-# Check if MCPs are configured
-cat .dorian.json | jq '.mcp.enabled'
-cat .dorian.json | jq '.mcp.project_servers'
+# Check if MCPs are configured (try .dorian.json first, fallback to .template)
+DORIAN_CONFIG=".dorian.json"
+[ ! -f "$DORIAN_CONFIG" ] && DORIAN_CONFIG=".dorian.json.template"
+
+cat "$DORIAN_CONFIG" | jq '.mcp.enabled'
+cat "$DORIAN_CONFIG" | jq '.mcp.project_servers'
 ```
 
 If external research would help (analytics, error tracking, deployment info):
@@ -52,11 +57,15 @@ NO → I'll proceed with codebase analysis only
 
 ## Git Branch Handling
 
-**Read base branch from .dorian.json:**
+**Read base branch from .dorian.json (or .dorian.json.template):**
 
 ```bash
-BASE_BRANCH=$(cat .dorian.json | jq -r '.git.base_branch')
-BRANCH_PREFIX=$(cat .dorian.json | jq -r '.git.branch_prefix')
+# Use .dorian.json if exists, otherwise use .dorian.json.template
+DORIAN_CONFIG=".dorian.json"
+[ ! -f "$DORIAN_CONFIG" ] && DORIAN_CONFIG=".dorian.json.template"
+
+BASE_BRANCH=$(cat "$DORIAN_CONFIG" | jq -r '.git.base_branch')
+BRANCH_PREFIX=$(cat "$DORIAN_CONFIG" | jq -r '.git.branch_prefix')
 ```
 
 Execution scripts must handle existing branches gracefully:
@@ -160,25 +169,39 @@ If execution fails:
 
 ### 2. Execution Script: `.claude/plans/active/PLAN-{YYYYMMDD}-{slug}.sh`
 
+**CRITICAL: You MUST create this .sh file. This is NOT optional.**
+
 Generate an executable bash script that handles:
 - Git branching from base branch
 - MCP configuration (if needed)
 - Calling the execution agent with the plan
 - Error handling
 
-Use the template from `.claude/scripts/plan-template.sh` and fill in the variables.
+**Process:**
+1. Read the template from `.claude/scripts/plan-template.sh`
+2. Replace all `{{VARIABLES}}` with actual values:
+   - `{{PLAN_NAME}}` - Human-readable plan name
+   - `{{DATE}}` - YYYYMMDD format
+   - `{{SLUG}}` - kebab-case feature slug
+   - `{{BRANCH_NAME}}` - Full branch name (e.g., feat/dark-mode)
+   - `{{BASE_BRANCH}}` - From .dorian.json (e.g., main)
+   - `{{MCP_REQUIRED}}` - "none" or space-separated list (e.g., "chrome-devtools nextjs")
+   - `{{TOTAL_STEPS}}` - Number of steps in plan
+3. Write the filled template to `.claude/plans/active/PLAN-{YYYYMMDD}-{slug}.sh`
+4. Make it executable with `chmod +x`
 
 ## Planning Best Practices
 
 ### DO:
-- ✅ Read CLAUDE.md and .dorian.json FIRST
+- ✅ Read CLAUDE.md and .dorian.json (or .dorian.json.template) FIRST
 - ✅ Research codebase thoroughly (Read, Grep, Glob)
 - ✅ Break complex features into 5-10 clear steps
 - ✅ Specify exact file paths and line numbers
 - ✅ Write clear acceptance criteria
 - ✅ Reference project patterns from CLAUDE.md
-- ✅ Use quality gates from .dorian.json
-- ✅ Create both .md plan and .sh execution script
+- ✅ Use quality gates from .dorian.json/.dorian.json.template
+- ✅ **ALWAYS create BOTH .md plan AND .sh execution script** (NOT optional!)
+- ✅ Read `.claude/scripts/plan-template.sh` and fill in all {{VARIABLES}}
 - ✅ Make .sh script executable (chmod +x)
 
 ### DON'T:
@@ -192,6 +215,8 @@ Use the template from `.claude/scripts/plan-template.sh` and fill in the variabl
 
 ## Creating Plan Files
 
+**CRITICAL: You MUST create BOTH files. This is mandatory.**
+
 After creating the plan files:
 
 1. **Write the .md file** using Write tool:
@@ -199,12 +224,17 @@ After creating the plan files:
    Write: .claude/plans/active/PLAN-{date}-{slug}.md
    ```
 
-2. **Write the .sh script** using Write tool:
+2. **Read the script template**:
+   ```
+   Read: .claude/scripts/plan-template.sh
+   ```
+
+3. **Write the .sh script** using Write tool (fill in all {{VARIABLES}}):
    ```
    Write: .claude/plans/active/PLAN-{date}-{slug}.sh
    ```
 
-3. **Make script executable**:
+4. **Make script executable**:
    ```bash
    chmod +x .claude/plans/active/PLAN-{date}-{slug}.sh
    ```
@@ -224,10 +254,10 @@ Let me research the current setup...
 - Package manager: Bun
 - Quality gates: bun test, tsc, bun run check, bun run build
 
-*Reads .dorian.json:*
+*Reads .dorian.json.template:* (no .dorian.json found)
 - Base branch: main
 - Commit convention: conventional
-- MCPs: none enabled
+- MCPs: chrome-devtools, nextjs enabled
 
 *Uses Read to check:*
 - package.json:12 → next-themes v0.4.6 installed
@@ -236,9 +266,15 @@ Let me research the current setup...
 
 This feature does not require external research. Proceeding with plan...
 
+*Reads .claude/scripts/plan-template.sh:*
+- Template loaded
+
 *Creates:*
 - .claude/plans/active/PLAN-20260114-dark-mode.md (5 steps, 1.5 hours)
-- .claude/plans/active/PLAN-20260114-dark-mode.sh (executable script)
+- .claude/plans/active/PLAN-20260114-dark-mode.sh (executable script from template)
+
+*Makes executable:*
+- chmod +x .claude/plans/active/PLAN-20260114-dark-mode.sh
 
 ✅ Plan created: PLAN-20260114-dark-mode
 
@@ -267,7 +303,7 @@ Plan is instantly available to all worktrees. Ready to execute?
 
 Before creating plan files, verify:
 - [ ] Read CLAUDE.md for tech stack context
-- [ ] Read .dorian.json for quality gates
+- [ ] Read .dorian.json (or .dorian.json.template) for quality gates
 - [ ] All file paths are exact and exist
 - [ ] Steps are actionable and clear
 - [ ] MCPs declared if needed
@@ -276,8 +312,10 @@ Before creating plan files, verify:
 - [ ] Rollback plan included
 - [ ] Time estimate reasonable
 - [ ] Acceptance criteria measurable
-- [ ] Both .md and .sh files will be created
-- [ ] .sh script made executable
+- [ ] **Read `.claude/scripts/plan-template.sh` template**
+- [ ] **Both .md and .sh files MUST be created** (mandatory!)
+- [ ] **.sh script filled with correct {{VARIABLES}}**
+- [ ] **.sh script made executable with chmod +x**
 
 ## Plugin Integration
 
@@ -299,10 +337,12 @@ If `.claude/plugins/frontend-design/` exists and you're planning UI features:
 **You are NOT executing. You are PLANNING.**
 
 Your output is:
-1. A detailed markdown plan file (.md)
-2. An executable bash script (.sh)
+1. A detailed markdown plan file (.md) - **REQUIRED**
+2. An executable bash script (.sh) - **REQUIRED** (fill from template!)
 3. Both files stored locally (not committed to git)
 4. Instantly available to all worktrees
+
+**If you don't create the .sh file, the plan is INCOMPLETE and UNUSABLE.**
 
 If your plan is vague, execution will fail. Be specific, be clear, be complete.
 
