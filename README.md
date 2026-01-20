@@ -7,9 +7,11 @@ Production-ready Claude Code configs based on [everything-claude-code](https://g
 ```
 dotclaude/
 ├── agents/           # Specialized subagents
-│   └── planner.md          # Planning specialist
+│   ├── planner.md          # Planning specialist (creates timestamped plans)
+│   └── executor.md         # Execution agent (implements plans mechanically)
 ├── commands/         # Slash commands
-│   └── plan.md             # /plan command
+│   ├── plan.md             # /plan command (invokes planner agent)
+│   └── exec.md             # /exec command (invokes executor agent)
 ├── rules/            # Always-follow guidelines
 │   ├── security.md         # Security requirements
 │   ├── coding-style.md     # File organization, immutability
@@ -18,7 +20,10 @@ dotclaude/
 ├── skills/           # Domain knowledge
 │   └── nextjs-tailwind-patterns.md
 ├── scripts/          # Utilities
-│   └── git-branch.sh       # Optional git automation
+│   └── plan-template.sh    # Template for auto-generated execution scripts
+├── templates/        # Project templates (not stowed)
+│   ├── CLAUDE.md.template  # Project context template
+│   └── plan-skeleton.md    # Plan format reference
 └── hooks/            # Event-based automation
     └── hooks.json          # Copy to ~/.claude/settings.json
 ```
@@ -66,40 +71,64 @@ For project-specific quality gates, add hooks to your project's `.claude/setting
 
 ## Workflow
 
-### Planning
+### Two-Phase Development
+
+This configuration supports a **plan-then-execute** workflow:
+
+#### Phase 1: Planning
 
 ```bash
 # User runs /plan command
 /plan Add dark mode support
 
-# Planner agent creates inline plan
-# - Restate requirements
-# - Break into phases
-# - Identify risks
-# - Wait for approval
+# Planner agent:
+# 1. Reads CLAUDE.md for project context
+# 2. Researches codebase with Grep, Glob, Read
+# 3. Creates TWO files in .claude/plans/active/:
+#    - PLAN-20260120-dark-mode.md (detailed plan)
+#    - PLAN-20260120-dark-mode.sh (execution script)
+# 4. Makes .sh executable
 
-# User approves
-yes
-
-# Implementation happens in same session
+# Files are created automatically, no approval needed
 ```
 
-### Optional Git Automation
+#### Phase 2: Execution
 
 ```bash
-# After /plan approval, optionally run:
-~/.claude/scripts/git-branch.sh feat/dark-mode main
+# User runs /exec command with plan name
+/exec PLAN-20260120-dark-mode.md
 
-# Then continue implementation with:
-claude --dangerously-skip-permissions
+# Executor agent:
+# 1. Loads plan from .claude/plans/active/
+# 2. Executes each step mechanically
+# 3. Commits after each step (quality gates run via hooks)
+# 4. Creates PR when all steps complete
+# 5. Updates plan status to "completed"
+
+# Alternative: Run the .sh script directly
+./.claude/plans/active/PLAN-20260120-dark-mode.sh
+```
+
+### Plan File Structure
+
+Plans are stored locally in `.claude/plans/active/` (not committed to git):
+
+```
+.claude/plans/active/
+├── PLAN-20260120-dark-mode.md    # Detailed plan
+├── PLAN-20260120-dark-mode.sh    # Execution script (auto-generated)
+├── PLAN-20260119-user-auth.md    # Previous plan
+└── PLAN-20260119-user-auth.sh    # Previous script
 ```
 
 ## Philosophy
 
-- **Simple**: Inline plans, no file storage
-- **Modular**: Rules, agents, skills are separate
-- **Quality**: Hooks enforce standards automatically
-- **Flexible**: Add project-specific configs as needed
+- **Plan-Driven**: Create detailed execution plans before coding
+- **Two-Agent System**: Planner creates plans, executor implements them mechanically
+- **Timestamped Plans**: All plans stored with YYYYMMDD timestamps for tracking
+- **Modular**: Rules, agents, skills, commands are separate
+- **Quality**: Hooks enforce standards automatically before each commit
+- **Flexible**: Add project-specific configs via .claude/settings.local.json
 
 ## Based On
 
